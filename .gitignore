@@ -1,0 +1,13 @@
+# Build binaries
+chess
+perft
+search
+bench
+
+# Object files
+*.o
+
+# Debug build
+*.dSYM/
+
+plan.md
