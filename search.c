@@ -6,6 +6,7 @@
 
 #include <stdint.h>
 #include <sys/types.h>
+#include <stdlib.h>
 
 #define INF        1000000000
 #define MATE_SCORE 1000000
@@ -24,13 +25,13 @@ static int evaluate_for_side_to_move(const Board* b) {
 }
 
 static int move_score(const Board* b, Move m) {
-    int attacker = material_value(b->squares[m.from_row][m.from_col]);
+    int attacker = material_value(abs(b->squares[m.from_row][m.from_col]));
     int victim = 0;
 
     if (m.type == EN_PASSANT) {
         victim = 100;
     } else {
-        victim = material_value(b->squares[m.to_row][m.to_col]);
+        victim = material_value(abs(b->squares[m.to_row][m.to_col]));
     }
 
     if (victim == 0 && m.type != PROMO)
@@ -189,65 +190,64 @@ uint64_t search_get_nodes(void) {
 
 
 static int quiescence(Board* b, int alpha, int beta) {
-    MoveList moves;
-    generate_legal_moves(b, &moves);
-
     bool in_check = is_in_check(b, b->side_to_move);
 
-    /* Checkmate / stalemate */
-    if (moves.count == 0) {
-        if (in_check)
+    if (in_check) {
+        MoveList moves;
+        generate_legal_moves(b, &moves);
+
+        if (moves.count == 0)
             return -MATE_SCORE;
 
-        return 0;
+        for (int i = 0; i < moves.count; i++) {
+            Move m = moves.moves[i];
+            Undo u;
+
+
+            board_make_move(b,m ,&u);
+            int score = -quiescence(b, -beta, -alpha);
+            board_unmake_move(b, m, &u);
+
+            if (score >= beta) return beta;
+            if (score > alpha) alpha = score;
+        }
+        return alpha;
     }
 
-    /*
-     * If we're not in check, we can choose to "stand pat":
-     * don't make a tactical move and keep the current position.
-     */
-    if (!in_check) {
-        int stand_pat = evaluate_for_side_to_move(b);
+    int stand_pat = evaluate_for_side_to_move(b);
 
-        if (stand_pat >= beta)
-            return beta;
+    if (stand_pat >= beta) return beta;
+    if (stand_pat > alpha) alpha = stand_pat;
 
-        if (stand_pat > alpha)
-            alpha = stand_pat;
-    }
+    MoveList moves;
+    generate_all_moves(b, &moves);
+    order_moves(b, &moves);
 
-    /*
-     * If we're in check, we must search all legal evasions.
-     * Otherwise, only search tactical moves.
-     */
     for (int i = 0; i < moves.count; i++) {
         Move m = moves.moves[i];
 
-        if (!in_check) {
-            int captured = b->squares[m.to_row][m.to_col];
+        int captured = b->squares[m.to_row][m.to_col];
+        bool is_capture = (captured != EMPTY);
+        bool is_promotion = (m.type == PROMO);
+        bool is_en_passant = (m.type == EN_PASSANT);
 
-            bool is_capture = (captured != EMPTY);
-            bool is_promotion = (m.type == PROMO);
-            bool is_en_passant = (m.type == EN_PASSANT);
-
-            if (!is_capture && !is_promotion && !is_en_passant)
-                continue;
-        }
+        if (!is_capture && !is_promotion && !is_en_passant)
+            continue;
 
         Undo u;
-
         board_make_move(b, m, &u);
 
+        if (is_in_check(b, -b->side_to_move)) {
+            board_unmake_move(b, m, &u);
+            continue;
+        }
         int score = -quiescence(b, -beta, -alpha);
-
         board_unmake_move(b, m, &u);
 
-        if (score >= beta)
-            return beta;
+        if (score >= beta) return beta;
+        if (score> alpha) alpha = score;
 
-        if (score > alpha)
-            alpha = score;
     }
-
     return alpha;
 }
+
