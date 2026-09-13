@@ -5,6 +5,8 @@
 #include <inttypes.h>
 
 uint64_t perft(Board* b, int depth) {
+    // board_verify_hash(b);
+
     if (depth == 0)
 	return 1;
 
@@ -18,10 +20,12 @@ uint64_t perft(Board* b, int depth) {
 	Undo u;
 
 	board_make_move(b, m, &u);
+	// board_verify_hash(b);
 
 	nodes += perft(b, depth - 1);
 
 	board_unmake_move(b, m, &u);
+	// board_verify_hash(b);
     }
 
     return nodes;

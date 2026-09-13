@@ -3,7 +3,7 @@
 
 #include <stdbool.h>
 #include "move.h"
-
+#include <stdint.h>
 #define EMPTY 0
 #define PAWN 1
 #define KNIGHT 2
@@ -25,6 +25,8 @@ typedef struct {
 
     int wk_row, wk_col;
     int bk_row, bk_col;
+
+    uint64_t hash;
 } Board;
 
 typedef struct {
@@ -44,6 +46,8 @@ typedef struct {
     int wk_col;
     int bk_row;
     int bk_col;
+
+    uint64_t hash;
 } Undo;
 
 void board_init_startpos(Board* b);
@@ -52,4 +56,6 @@ void board_print(const Board* b);
 
 void board_make_move(Board* b, Move m, Undo* u);
 void board_unmake_move(Board* b, Move m, const Undo* u);
+
+void board_verify_hash(const Board* b);
 #endif

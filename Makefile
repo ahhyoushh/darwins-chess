@@ -1,7 +1,7 @@
 CC = gcc
 CFLAGS = -Wall -Wextra -Wpedantic -O3
 
-CORE_SRC = board.c movegen.c eval.c search.c
+CORE_SRC = board.c movegen.c eval.c search.c zobrist.c tt.c
 ENGINE_SRC = $(CORE_SRC) uci.c main.c
 PERFT_SRC = $(CORE_SRC) perft.c test_perft.c
 SEARCH_TEST_SRC = $(CORE_SRC) test_search.c

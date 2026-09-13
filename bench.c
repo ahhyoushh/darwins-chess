@@ -1,4 +1,4 @@
-#define _POSIX_C_SOURCE 200809L
+#include "tt.h"
 
 #include <stdio.h>
 #include <stdint.h>
@@ -110,6 +110,7 @@ static void benchmark_depth(
 
 
 int main(int argc, char** argv) {
+    tt_init();
     int max_depth = 4;
 
     if (argc >= 2) {

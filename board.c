@@ -4,6 +4,43 @@
 #include <string.h>
 #include <ctype.h>
 #include <stdlib.h>
+#include "zobrist.h"
+// #include <assert.h>
+//
+// static uint64_t compute_hash_from_scratch(const Board* b) {
+//     uint64_t h = 0;
+//
+//     for (int row = 0; row < 8; row++) {
+//         for (int col = 0; col < 8; col++) {
+//             int piece = b->squares[row][col];
+//             if (piece != EMPTY) {
+//                 int color = (piece > 0) ? 0 : 1;
+//                 int type = abs(piece);
+//                 h ^= zobrist_piece[color][type][row * 8 + col];
+//             }
+//         }
+//     }
+//
+//     if (b->side_to_move == BLACK) h ^= zobrist_black_to_move;
+//     if (b->castle_wk) h ^= zobrist_castle[0];
+//     if (b->castle_wq) h ^= zobrist_castle[1];
+//     if (b->castle_bk) h ^= zobrist_castle[2];
+//     if (b->castle_bq) h ^= zobrist_castle[3];
+//     if (b->ep_row >= 0) h ^= zobrist_ep_file[b->ep_col];
+//
+//     return h;
+// }
+//
+// void board_verify_hash(const Board* b) {
+//     uint64_t expected = compute_hash_from_scratch(b);
+//     if (b->hash != expected) {
+//         fprintf(stderr,
+//                 "HASH MISMATCH: incremental=%llx expected=%llx\n",
+//                 (unsigned long long)b->hash,
+//                 (unsigned long long)expected);
+//         assert(b->hash == expected);
+//     }
+// }
 
 static int piece_from_char(char c) {
     int val;
@@ -33,12 +70,21 @@ static char char_from_piece(int p) {
     return p > 0 ? toupper(c) : c;
 }
 
+static inline void hash_toggle_piece(Board* b, int piece, int sq) {
+    int color = (piece > 0)  ? 0 : 1;
+    int type = abs(piece);
+    b->hash ^= zobrist_piece[color][type][sq];
+}
+static bool zobrist_ready = false;
+
 void board_init_startpos(Board* b) {
+    if (!zobrist_ready) { zobrist_init(); zobrist_ready = true; }
     board_load_fen(b, "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
 }
 
 
 bool board_load_fen(Board* b, const char* fen) {
+    if (!zobrist_ready) { zobrist_init(); zobrist_ready = true;}
     memset(b, 0, sizeof(Board));
     b->ep_row = -1;
     b->ep_col = -1;
@@ -85,6 +131,21 @@ bool board_load_fen(Board* b, const char* fen) {
         b->ep_col = p[0] - 'a';
         b->ep_row = p[1] - '1';
     }
+
+    b->hash = 0;
+    for (int row = 0; row < 8; row++) {
+        for (int col = 0; col < 8; col ++) {
+            int piece = b->squares[row][col];
+            if (piece != EMPTY)
+                hash_toggle_piece(b, piece, row * 8 + col);
+        }
+    }
+    if (b->side_to_move == BLACK) b->hash ^= zobrist_black_to_move;
+    if (b->castle_wk) b->hash ^= zobrist_castle[0];
+    if (b->castle_wq) b->hash ^= zobrist_castle[1];
+    if (b->castle_bk) b->hash^= zobrist_castle[2];
+    if (b->castle_bq) b->hash ^= zobrist_castle[3];
+    if (b->ep_col >= 0) b->hash ^= zobrist_ep_file[b->ep_col];
     //TODO: halfmove clock / fullmove number ignored for now
 
     return true;
@@ -136,6 +197,13 @@ void board_make_move(Board* b, Move m, Undo* u) {
     b->ep_row = -1;
     b->ep_col = -1;
 
+    u->hash = b->hash;
+    if (b->castle_wk) b->hash ^= zobrist_castle[0];
+    if (b->castle_wq) b->hash ^= zobrist_castle[1];
+    if (b->castle_bk) b->hash ^= zobrist_castle[2];
+    if (b->castle_bq) b->hash ^= zobrist_castle[3];
+    if (u->ep_row >= 0) b->hash ^= zobrist_ep_file[u->ep_col];
+
     if (abs(piece) == KING) {
         if (piece > 0) {
             b->wk_row = m.to_row;
@@ -183,6 +251,11 @@ void board_make_move(Board* b, Move m, Undo* u) {
     switch (m.type) {
 
         case NORMAL:
+            hash_toggle_piece(b, piece, m.from_row * 8 + m.from_col);
+            if (captured != EMPTY) hash_toggle_piece(b, captured, m.to_row * 8 + m.to_col);
+            hash_toggle_piece(b, piece, m.to_row * 8 + m.to_col);
+
+
             b->squares[m.from_row][m.from_col] = EMPTY;
             b->squares[m.to_row][m.to_col] = piece;
             break;
@@ -191,6 +264,10 @@ void board_make_move(Board* b, Move m, Undo* u) {
         case PROMO: {
             int promoted_piece =
                 (piece > 0) ? m.promo_piece : -m.promo_piece;
+            hash_toggle_piece(b, piece, m.from_row * 8 + m.from_col);
+            if (captured != EMPTY)
+                hash_toggle_piece(b, captured, m.to_row * 8 + m.to_col);
+            hash_toggle_piece(b, promoted_piece, m.to_row * 8 + m.to_col);
 
             b->squares[m.from_row][m.from_col] = EMPTY;
             b->squares[m.to_row][m.to_col] = promoted_piece;
@@ -200,10 +277,15 @@ void board_make_move(Board* b, Move m, Undo* u) {
 
         case EN_PASSANT: {
             int direction = (piece > 0) ? 1 : -1;
+            int captured_row = m.to_row - direction;
+            int captured_pawn = b->squares[captured_row][m.to_col];
+
+            hash_toggle_piece(b, piece, m.from_row * 8 + m.from_col);
+            hash_toggle_piece(b, piece, m.to_row * 8 + m.to_col);
+            hash_toggle_piece(b, captured_pawn, captured_row * 8 + m.to_col);
 
             b->squares[m.from_row][m.from_col] = EMPTY;
             b->squares[m.to_row][m.to_col] = piece;
-
             b->squares[m.to_row - direction][m.to_col] = EMPTY;
             break;
         }
@@ -211,6 +293,13 @@ void board_make_move(Board* b, Move m, Undo* u) {
 
         case CASTLE_KS:
             if (piece > 0) {
+
+
+                hash_toggle_piece(b, KING, 4);
+                hash_toggle_piece(b, ROOK, 7);
+                hash_toggle_piece(b, KING, 6);
+                hash_toggle_piece(b, ROOK, 5);
+
                 // White: Ke1 -> g1, Rh1 -> f1
                 b->squares[0][4] = EMPTY;
                 b->squares[0][7] = EMPTY;
@@ -224,6 +313,11 @@ void board_make_move(Board* b, Move m, Undo* u) {
                 b->castle_wk = false;
                 b->castle_wq = false;
             } else {
+                hash_toggle_piece(b, -KING, 60);
+                hash_toggle_piece(b, -ROOK, 63);
+                hash_toggle_piece(b, -KING, 62);
+                hash_toggle_piece(b, -ROOK, 61);
+
                 // Black: Ke8 -> g8, Rh8 -> f8
                 b->squares[7][4] = EMPTY;
                 b->squares[7][7] = EMPTY;
@@ -242,7 +336,11 @@ void board_make_move(Board* b, Move m, Undo* u) {
 
         case CASTLE_QS:
             if (piece > 0) {
-                // White: Ke1 -> c1, Ra1 -> d1
+                hash_toggle_piece(b, KING, 4);
+                hash_toggle_piece(b, ROOK, 0);
+                hash_toggle_piece(b, KING, 2);
+                hash_toggle_piece(b, ROOK, 3);
+                    // White: Ke1 -> c1, Ra1 -> d1
                 b->squares[0][4] = EMPTY;
                 b->squares[0][0] = EMPTY;
 
@@ -255,6 +353,10 @@ void board_make_move(Board* b, Move m, Undo* u) {
                 b->castle_wk = false;
                 b->castle_wq = false;
             } else {
+                hash_toggle_piece(b, -KING, 60);
+                hash_toggle_piece(b, -ROOK, 56);
+                hash_toggle_piece(b, -KING, 58);
+                hash_toggle_piece(b, -ROOK, 59);
                 // Black: Ke8 -> c8, Ra8 -> d8
                 b->squares[7][4] = EMPTY;
                 b->squares[7][0] = EMPTY;
@@ -278,6 +380,13 @@ void board_make_move(Board* b, Move m, Undo* u) {
         b->ep_col = m.from_col;
     }
 
+    if (b->castle_wk) b->hash ^= zobrist_castle[0];
+    if (b->castle_wq) b->hash ^= zobrist_castle[1];
+    if (b->castle_bk) b->hash ^= zobrist_castle[2];
+    if (b->castle_bq) b->hash ^= zobrist_castle[3];
+    if (b->ep_row >= 0) b->hash ^= zobrist_ep_file[b->ep_col];
+
+    b->hash ^= zobrist_black_to_move;
     b->side_to_move = -b->side_to_move;
 }
 
@@ -396,4 +505,6 @@ void board_unmake_move(Board* b, Move m, const Undo* u) {
 
     b->bk_row = u->bk_row;
     b->bk_col = u->bk_col;
+
+    b->hash = u->hash;
 }

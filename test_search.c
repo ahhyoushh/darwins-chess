@@ -2,6 +2,7 @@
 
 #include "board.h"
 #include "search.h"
+#include "tt.h"
 
 #define INF 1000000000
 
@@ -23,6 +24,7 @@ static void print_move(Move m) {
 }
 
 int main(void) {
+    tt_init();
     Board b;
 
     board_init_startpos(&b);

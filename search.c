@@ -3,6 +3,7 @@
 #include "move.h"
 #include "movegen.h"
 #include "eval.h"
+#include "tt.h"
 
 #include <stdint.h>
 #include <sys/types.h>
@@ -11,7 +12,9 @@
 #define INF        1000000000
 #define MATE_SCORE 1000000
 
+
 static int quiescence(Board* b, int alpha, int beta);
+static void prioritize_move(MoveList* moves, Move preferred);
 
 static uint64_t nodes_searched = 0;
 
@@ -66,10 +69,39 @@ static void order_moves(const Board* b, MoveList* moves) {
 int negamax(Board* b, int depth, int alpha, int beta) {
 
     nodes_searched++;
-    MoveList moves;
+    
+    int alpha_orig = alpha;
 
+    bool has_tt_move = false;
+    Move tt_move = (Move){0};
+
+    TTEntry* tte = tt_probe(b->hash);
+    if (tte) {
+        if (tte->has_move) {
+            tt_move = tte->best_move;
+            has_tt_move = true;
+        }
+
+        if (tte->depth >= depth) {
+            if (tte->flag == TT_EXACT) {
+                return tte->score;
+            } else if (tte->flag == TT_LOWERBOUND) {
+                if (tte->score > alpha) alpha = tte->score;
+            } else if (tte->flag == TT_UPPERBOUND) {
+                if (tte->score < beta) beta = tte->score;
+            }
+            if (alpha >= beta) {
+                return tte->score;
+            }
+        }
+    }
+
+    MoveList moves;
     generate_legal_moves(b, &moves);
     order_moves(b, &moves);
+
+    if (has_tt_move)
+        prioritize_move(&moves, tt_move);
 
     if (moves.count == 0) {
 	    if (is_in_check(b, b->side_to_move))
@@ -82,6 +114,7 @@ int negamax(Board* b, int depth, int alpha, int beta) {
 	    return quiescence(b, alpha, beta);
 
     int best_score = -INF;
+    Move best_move = moves.moves[0];
 
     for (int i = 0; i < moves.count; i++) {
 	
@@ -94,15 +127,26 @@ int negamax(Board* b, int depth, int alpha, int beta) {
 	
 	    board_unmake_move(b,m, &u);
 
-	    if (score > best_score)
+	    if (score > best_score) {
 	        best_score = score;
-
+            best_move = m;
+        };
         if (score > alpha)
             alpha = score;
 
         if (alpha >= beta)
             break;
     }
+
+    TTFlag flag;
+    if (best_score <= alpha_orig)
+        flag = TT_UPPERBOUND;
+    else if (best_score >= beta)
+        flag = TT_LOWERBOUND;
+    else
+        flag = TT_EXACT;
+
+    tt_store(b->hash, depth, best_score,flag, best_move, true);
     return best_score;
 }
 
@@ -141,6 +185,10 @@ static Move search_at_depth(Board* b, int depth, Move preferred_move, bool has_p
 
     if (has_preferred_move)
         prioritize_move(&moves, preferred_move);
+
+    TTEntry* tte = tt_probe(b->hash);
+    if (tte && tte->has_move)
+        prioritize_move(&moves, tte->best_move);
 
     Move best_move = moves.moves[0];
 

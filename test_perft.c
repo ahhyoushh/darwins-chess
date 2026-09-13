@@ -9,6 +9,7 @@
 #include "board.h"
 #include "movegen.h"
 #include "perft.h"
+#include "tt.h"
 
 #define ARRAY_LEN(x) (sizeof(x) / sizeof((x)[0]))
 
@@ -713,6 +714,7 @@ static bool test_special_move_generation(void) {
  */
 
 int main(int argc, char **argv) {
+    tt_init();
     bool run_core = false;
     bool run_edge = false;
     bool run_all = false;
