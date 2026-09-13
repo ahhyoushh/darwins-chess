@@ -94,7 +94,7 @@ static int pst_value(int type, int row, int col, int color) {
     }
 }
 
-static int material_value(int type) {
+int material_value(int type) {
     switch (type) {
         case PAWN: return PAWN_VALUE;
         case KNIGHT: return KNIGHT_VALUE;

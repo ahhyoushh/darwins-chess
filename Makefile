@@ -1,20 +1,26 @@
 CC = gcc
 CFLAGS = -Wall -Wextra -Wpedantic -O3
 
-SRC = board.c movegen.c eval.c search.c perft.c
+CORE_SRC = board.c movegen.c eval.c search.c
+ENGINE_SRC = $(CORE_SRC) uci.c main.c
+PERFT_SRC = $(CORE_SRC) perft.c test_perft.c
+SEARCH_TEST_SRC = $(CORE_SRC) test_search.c
+BENCH_SRC = $(CORE_SRC) bench.c
+
+.PHONY: all clean
 
 all: chess
 
-chess: $(SRC) main.c
+chess: $(ENGINE_SRC)
 	$(CC) $(CFLAGS) $^ -o $@
 
-perft: $(SRC) test_perft.c
+perft: $(PERFT_SRC)
 	$(CC) $(CFLAGS) $^ -o $@
 
-search: $(SRC) test_search.c
+search: $(SEARCH_TEST_SRC)
 	$(CC) $(CFLAGS) $^ -o $@
 
-bench: $(SRC) bench.c
+bench: $(BENCH_SRC)
 	$(CC) $(CFLAGS) $^ -o $@
 
 clean:

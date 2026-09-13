@@ -1,0 +1,41 @@
+[Event "?"]
+[Site "?"]
+[Date "2026.09.12"]
+[Round "1"]
+[White "DarwinsChess"]
+[Black "SF1200"]
+[Result "0-1"]
+[ECO "A00"]
+[GameDuration "00:00:18"]
+[GameEndTime "2026-09-12T15:55:29.826 IST"]
+[GameStartTime "2026-09-12T15:55:11.152 IST"]
+[Opening "Dunst (Sleipner, Heinrichsen) Opening"]
+[PlyCount "14"]
+[Termination "time forfeit"]
+[TimeControl "10+0.1"]
+
+1. Nc3 Nf6 {+0.20/14 0.42s} 2. Nf3 Nc6 {+0.20/13 0.18s} 3. d4
+h6 {-0.23/14 0.51s} 4. d5 Nb8 {-1.12/16 0.48s} 5. e4 {0.89s} e6 {-1.11/17 1.3s}
+6. e5 {6.3s} Ng8 {-0.84/15 0.33s} 7. Bc4 {2.2s}
+d6 {-1.71/15 0.52s, White loses on time} 0-1
+
+[Event "?"]
+[Site "?"]
+[Date "2026.09.12"]
+[Round "1"]
+[White "SF1200"]
+[Black "DarwinsChess"]
+[Result "1-0"]
+[ECO "A00"]
+[GameDuration "00:00:28"]
+[GameEndTime "2026-09-12T15:55:58.208 IST"]
+[GameStartTime "2026-09-12T15:55:29.827 IST"]
+[Opening "Saragossa Opening"]
+[PlyCount "9"]
+[Termination "stalled connection"]
+[TimeControl "10+0.1"]
+
+1. c3 {+0.46/15 0.77s} Nc6 2. d4 {+0.39/14 0.50s} Nf6 3. Bf4 {+0.39/16 0.99s}
+Nd5 {0.84s} 4. Bd2 {+0.53/12 0.17s} e5 {0.84s}
+5. Nf3 {+0.52/15 0.70s, Black's connection stalls} 1-0
+

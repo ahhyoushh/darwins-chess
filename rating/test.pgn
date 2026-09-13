@@ -1,0 +1,58 @@
+[Event "?"]
+[Site "?"]
+[Date "2026.09.12"]
+[Round "1"]
+[White "DarwinsChess"]
+[Black "SF1400"]
+[Result "1-0"]
+[ECO "A00"]
+[GameDuration "00:01:18"]
+[GameEndTime "2026-09-12T16:00:55.238 IST"]
+[GameStartTime "2026-09-12T15:59:36.890 IST"]
+[Opening "Dunst (Sleipner-Heinrichsen) Opening"]
+[PlyCount "43"]
+[TimeControl "inf"]
+
+1. Nc3 e5 {+0.09/5 0.004s} 2. Nf3 {0.60s} Bd6 {-0.25/5 0.003s} 3. d4 {3.4s}
+exd4 {-1.15/5 0.003s} 4. Qxd4 {2.7s} Qf6 {-0.96/5 0.002s} 5. Qc4 {21s}
+Qe7 {-1.17/5 0.003s} 6. Nd5 {28s} b5 {-2.14/5 0.002s} 7. Nxe7 {6.6s}
+Bb7 {-2.73/5 0.001s} 8. Qxb5 {6.8s} Bxf3 {-5.40/5 0.001s} 9. exf3 {2.6s}
+Nxe7 {-5.89/5 0s} 10. Qb7 {1.2s} O-O {-4.96/5 0.001s} 11. Qxa8
+Nbc6 {-4.63/5 0.001s} 12. Qb7 {0.54s} Rb8 {-5.59/5 0s} 13. Qa6
+Na5 {-5.04/5 0.001s} 14. Qxa7 {1.8s} Nc8 {-6.49/5 0.001s} 15. Qxb8
+c6 {-7.93/5 0s} 16. Qxc8+ Bf8 {-8.48/5 0s} 17. Bg5 Nc4 {-7.84/5 0s} 18. Be7
+h5 {-12.55/5 0s} 19. Qxf8+ Kh7 {-12.57/5 0s} 20. Bd3+ f5 {-13.18/5 0s} 21. Bf6
+g6 {-M2/5 0s} 22. Qh8# {White mates} 1-0
+
+[Event "?"]
+[Site "?"]
+[Date "2026.09.12"]
+[Round "1"]
+[White "SF1400"]
+[Black "DarwinsChess"]
+[Result "0-1"]
+[ECO "A00"]
+[GameDuration "00:02:33"]
+[GameEndTime "2026-09-12T16:03:29.110 IST"]
+[GameStartTime "2026-09-12T16:00:55.238 IST"]
+[Opening "Saragossa Opening"]
+[PlyCount "68"]
+[TimeControl "inf"]
+
+1. c3 {+0.42/5 0.002s} Nc6 2. e4 {+0.19/5 0.003s} Nf6 {0.88s}
+3. d3 {+0.04/5 0.004s} d5 4. exd5 {-0.22/5 0.003s} Qxd5 {1.1s}
+5. Qb3 {-0.70/5 0.005s} Qxb3 {12s} 6. axb3 {-0.45/5 0.001s} e5 {1.6s}
+7. Be3 {-0.13/5 0.003s} Ng4 {1.2s} 8. Be2 {-0.13/5 0.003s} Nxe3 {1.8s}
+9. fxe3 {-0.29/5 0.002s} Bc5 {1.3s} 10. Kf2 {-0.02/5 0.002s} Bf5 {3.5s}
+11. Nd2 {+0.51/5 0.003s} Rd8 {10s} 12. g4 {+0.78/5 0.002s} Bxd3 {20s}
+13. h4 {-0.98/5 0.004s} e4 {19s} 14. Ra4 {-1.25/5 0.002s} b5 {17s}
+15. Rxe4+ {-0.84/5 0.001s} Bxe4 {0.93s} 16. Nxe4 {-1.58/5 0.002s} Rd5 {1.8s}
+17. Nf3 {-1.00/5 0.002s} Bb6 {9.5s} 18. b4 {-1.56/5 0.001s} O-O {4.3s}
+19. h5 {-1.65/5 0.002s} Re8 {4.4s} 20. Nd4 {-2.57/5 0.002s} Nxd4 {24s}
+21. exd4 {-2.86/5 0.001s} Rxe4 {4.4s} 22. Kf3 {-3.03/5 0.001s} Re8 {5.3s}
+23. Re1 {-5.18/5 0s} Rg5 {6.2s} 24. Bxb5 {-3.99/5 0s} Rxe1 25. Ba6 {-4.69/5 0s}
+Rb1 26. Kg3 {-5.71/5 0s} Rxb2 27. b5 {-6.80/5 0s} Rc2 28. Kh4 {-6.93/5 0s} h6
+29. c4 {-7.58/5 0.001s} Rxc4 30. Kg3 {-7.73/5 0s} Rxd4 31. Kf2 {-8.07/5 0s}
+Rdxg4+ 32. Ke1 {-8.20/5 0s} Rg2 33. Kf1 {-7.58/5 0s} Rf2+ 34. Ke1 {-M2/5 0s}
+Rg1# {Black mates} 0-1
+
