@@ -6,11 +6,18 @@
 #include "search.h"
 
 #include <ctype.h>
+#include <inttypes.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/select.h>
+#include <unistd.h>
 
 static Board board;
+
+/* Set by uci_poll_stdin() when it consumes a "quit" line during search,
+ * since that line never makes it back to uci_loop()'s own fgets(). */
+static bool quit_requested = false;
 
 
 static char promotion_char(int piece)
@@ -212,6 +219,77 @@ static bool handle_position(char *line)
 }
 
 
+/*
+ * Polled by search.c every POLL_NODE_INTERVAL nodes during a timed
+ * search. Non-blocking: select() with a zero timeout only tells us
+ * whether stdin has data ready, so we never stall the search waiting
+ * on input that never comes.
+ *
+ * Relies on uci_loop() having put stdin in unbuffered mode -- otherwise
+ * stdio can silently buffer a "stop" ahead of us and select() won't see
+ * it as ready.
+ */
+static SearchPollResult uci_poll_stdin(void)
+{
+    fd_set fds;
+    struct timeval tv = {0, 0};
+
+    FD_ZERO(&fds);
+    FD_SET(STDIN_FILENO, &fds);
+
+    int ready = select(STDIN_FILENO + 1, &fds, NULL, NULL, &tv);
+
+    if (ready <= 0)
+        return SEARCH_POLL_CONTINUE;
+
+    char line[4096];
+
+    if (fgets(line, sizeof(line), stdin) == NULL)
+        return SEARCH_POLL_CONTINUE;
+
+    if (strncmp(line, "stop", 4) == 0)
+        return SEARCH_POLL_STOP;
+
+    if (strncmp(line, "quit", 4) == 0) {
+        quit_requested = true;
+        return SEARCH_POLL_QUIT;
+    }
+
+    if (strncmp(line, "isready", 7) == 0) {
+        printf("readyok\n");
+        fflush(stdout);
+    }
+
+    /* Anything else arriving mid-search is ignored. */
+    return SEARCH_POLL_CONTINUE;
+}
+
+
+static void uci_on_search_info(
+    int depth,
+    int score,
+    uint64_t nodes,
+    uint64_t time_ms,
+    const Move *pv,
+    int pv_len)
+{
+    double seconds = (double)time_ms / 1000.0;
+    double nps = (seconds > 0.0) ? (double)nodes / seconds : 0.0;
+
+    printf("info depth %d score cp %d nodes %" PRIu64
+           " nps %.0f time %" PRIu64 " pv",
+           depth, score, nodes, nps, time_ms);
+
+    for (int i = 0; i < pv_len; i++) {
+        putchar(' ');
+        print_uci_move(pv[i]);
+    }
+
+    putchar('\n');
+    fflush(stdout);
+}
+
+
 static void handle_go(char *line)
 {
     char *saveptr = NULL;
@@ -220,27 +298,133 @@ static void handle_go(char *line)
 
     char *token = strtok_r(NULL, " \t\n", &saveptr);
 
-    int depth = 4;
+    bool have_depth = false;
+    int depth = 0;
+
+    bool have_movetime = false;
+    long movetime = 0;
+
+    bool have_wtime = false, have_btime = false;
+    long wtime = 0, btime = 0;
+
+    long winc = 0, binc = 0;
+
+    bool infinite = false;
 
     while (token != NULL) {
 
         if (strcmp(token, "depth") == 0) {
-            char *depth_str =
-                strtok_r(NULL, " \t\n", &saveptr);
+            char *v = strtok_r(NULL, " \t\n", &saveptr);
 
-            if (depth_str != NULL)
-                depth = atoi(depth_str);
+            if (v != NULL) {
+                depth = atoi(v);
+                have_depth = true;
+            }
+
+        } else if (strcmp(token, "movetime") == 0) {
+            char *v = strtok_r(NULL, " \t\n", &saveptr);
+
+            if (v != NULL) {
+                movetime = atol(v);
+                have_movetime = true;
+            }
+
+        } else if (strcmp(token, "wtime") == 0) {
+            char *v = strtok_r(NULL, " \t\n", &saveptr);
+
+            if (v != NULL) {
+                wtime = atol(v);
+                have_wtime = true;
+            }
+
+        } else if (strcmp(token, "btime") == 0) {
+            char *v = strtok_r(NULL, " \t\n", &saveptr);
+
+            if (v != NULL) {
+                btime = atol(v);
+                have_btime = true;
+            }
+
+        } else if (strcmp(token, "winc") == 0) {
+            char *v = strtok_r(NULL, " \t\n", &saveptr);
+
+            if (v != NULL)
+                winc = atol(v);
+
+        } else if (strcmp(token, "binc") == 0) {
+            char *v = strtok_r(NULL, " \t\n", &saveptr);
+
+            if (v != NULL)
+                binc = atol(v);
+
+        } else if (strcmp(token, "infinite") == 0) {
+            infinite = true;
         }
 
         token = strtok_r(NULL, " \t\n", &saveptr);
     }
 
-    if (depth < 1)
-        depth = 1;
+    SearchLimits limits = {0};
+
+    if (infinite) {
+
+        limits.has_time_limit = false;
+        limits.max_depth = MAX_SEARCH_DEPTH;
+
+    } else if (have_movetime) {
+
+        limits.has_time_limit = true;
+        limits.time_limit_ms = movetime;
+        limits.max_depth = have_depth ? depth : MAX_SEARCH_DEPTH;
+
+    } else if (have_wtime || have_btime) {
+
+        long time_left = (board.side_to_move == WHITE) ? wtime : btime;
+        long increment  = (board.side_to_move == WHITE) ? winc  : binc;
+
+        /*
+         * Simple time allocation: a fixed fraction of what's left, plus
+         * the increment. No move-count/phase awareness -- good enough
+         * until there's a reason to make it smarter.
+         */
+        long budget = time_left / 30 + increment / 2;
+
+        long safety_margin = 50; /* leave slack for I/O, GUI overhead */
+
+        if (budget > time_left - safety_margin)
+            budget = time_left - safety_margin;
+
+        if (budget < 50)
+            budget = 50;
+
+        limits.has_time_limit = true;
+        limits.time_limit_ms = budget;
+        limits.max_depth = have_depth ? depth : MAX_SEARCH_DEPTH;
+
+    } else if (have_depth) {
+
+        limits.has_time_limit = false;
+        limits.max_depth = depth;
+
+    } else {
+
+        /*
+         * Bare "go" with nothing else specified. Not strictly UCI (the
+         * spec treats this as infinite), but keeps manual testing by
+         * typing commands into stdin convenient.
+         */
+        limits.has_time_limit = false;
+        limits.max_depth = 4;
+    }
+
+    if (limits.max_depth < 1)
+        limits.max_depth = 1;
 
     search_reset_nodes();
 
-    Move best = search_best_move(&board, depth);
+    Move best = search_best_move_timed(
+        &board, limits, uci_on_search_info, uci_poll_stdin
+    );
 
     printf("bestmove ");
     print_uci_move(best);
@@ -252,6 +436,14 @@ static void handle_go(char *line)
 
 void uci_loop(void)
 {
+    /*
+     * Unbuffered stdin: uci_poll_stdin() uses select() to check for
+     * pending input during search. With stdio's default block buffering
+     * on a pipe, a "stop" sent right after "go" could get swallowed into
+     * the buffer ahead of us, and select() would never see it as ready.
+     */
+    setvbuf(stdin, NULL, _IONBF, 0);
+
     board_init_startpos(&board);
 
     char line[4096];
@@ -283,6 +475,14 @@ void uci_loop(void)
 
             handle_go(line);
 
+            /*
+             * A "quit" sent while that search was running was consumed
+             * by uci_poll_stdin(), not by the fgets() above -- it will
+             * never come back around this loop, so act on it now.
+             */
+            if (quit_requested)
+                break;
+
         } else if (strncmp(line, "quit", 4) == 0) {
 
             break;
@@ -290,8 +490,9 @@ void uci_loop(void)
         } else if (strncmp(line, "stop", 4) == 0) {
 
             /*
-             * Search is currently synchronous, so there is
-             * nothing to stop yet.
+             * Only reached when no search is running -- a "stop" sent
+             * mid-search is caught by uci_poll_stdin() instead. Nothing
+             * to do here.
              */
 
         }
