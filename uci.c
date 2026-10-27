@@ -10,8 +10,13 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+#ifdef _WIN32
+#include <windows.h>
+#else
 #include <sys/select.h>
 #include <unistd.h>
+#endif
 
 static Board board;
 
@@ -221,16 +226,18 @@ static bool handle_position(char *line)
 
 /*
  * Polled by search.c every POLL_NODE_INTERVAL nodes during a timed
- * search. Non-blocking: select() with a zero timeout only tells us
- * whether stdin has data ready, so we never stall the search waiting
- * on input that never comes.
+ * search. Non-blocking: selects on stdin with a zero timeout (POSIX
+ * select(), or WaitForSingleObject on Windows) so we only know whether
+ * input is ready and never stall the search waiting on input that never
+ * comes.
  *
  * Relies on uci_loop() having put stdin in unbuffered mode -- otherwise
- * stdio can silently buffer a "stop" ahead of us and select() won't see
+ * stdio can silently buffer a "stop" ahead of us and the poll won't see
  * it as ready.
  */
 static SearchPollResult uci_poll_stdin(void)
 {
+#ifndef _WIN32
     fd_set fds;
     struct timeval tv = {0, 0};
 
@@ -241,6 +248,16 @@ static SearchPollResult uci_poll_stdin(void)
 
     if (ready <= 0)
         return SEARCH_POLL_CONTINUE;
+#else
+    /*
+     * GetStdHandle(STD_INPUT_HANDLE) works both for console input
+     * (signaled on key events) and for the pipe a UCI GUI uses: an
+     * anonymous-pipe read handle is signaled whenever data has been
+     * written to it.
+     */
+    if (WaitForSingleObject(GetStdHandle(STD_INPUT_HANDLE), 0) != WAIT_OBJECT_0)
+        return SEARCH_POLL_CONTINUE;
+#endif
 
     char line[4096];
 
