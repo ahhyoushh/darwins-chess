@@ -3,6 +3,7 @@ chess
 perft
 search
 bench
+*.exe
 
 # Object files
 *.o
